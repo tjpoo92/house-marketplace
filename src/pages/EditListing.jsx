@@ -6,17 +6,18 @@ import {
 	uploadBytesResumable,
 	getDownloadURL,
 } from "firebase/storage";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { serverTimestamp, doc, updateDoc, getDoc } from "firebase/firestore";
 import { db } from "../firebase.config";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Spinner from "../components/Spinner";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "react-toastify";
 
-function CreateListing() {
+function EditListing() {
 	// eslint-disable-next-line
 	const [geolocationEnabled, setGeolocationEnabled] = useState(true);
 	const [isLoading, setIsLoading] = useState(false);
+	const [listing, setListing] = useState(false);
 
 	const [formData, setFormData] = useState({
 		type: "rent",
@@ -37,6 +38,7 @@ function CreateListing() {
 	const auth = getAuth();
 	const navigate = useNavigate();
 	const _isMounted = useRef(true);
+	const params = useParams();
 
 	useEffect(() => {
 		if (_isMounted) {
@@ -53,6 +55,30 @@ function CreateListing() {
 		};
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [_isMounted]);
+
+	useEffect(() => {
+		if (listing && listing.userRef !== auth.currentUser.uid) {
+			toast.error("You cannot edit that listing");
+			navigate("/");
+		}
+	}, [navigate, listing, auth.currentUser.uid]);
+
+	useEffect(() => {
+		setIsLoading(true);
+		const fetchListing = async () => {
+			const docRef = doc(db, "listings", params.listingId);
+			const docSnap = await getDoc(docRef);
+			if (docSnap.exists()) {
+				setListing(docSnap.data());
+				setFormData({ ...docSnap.data(), address: docSnap.data().location });
+				setIsLoading(false);
+			} else {
+				navigate("/");
+				toast.error("Listing does not exist");
+			}
+		};
+		fetchListing();
+	}, [navigate, params.listingId]);
 
 	const {
 		type,
@@ -194,7 +220,8 @@ function CreateListing() {
 
 		!formDataCopy.offer && delete formDataCopy.discountedPrice;
 
-		const docRef = await addDoc(collection(db, "listings"), formDataCopy);
+		const docRef = doc(db, "listings", params.listingId);
+		await updateDoc(docRef, formDataCopy);
 
 		setIsLoading(false);
 
@@ -209,7 +236,7 @@ function CreateListing() {
 	return (
 		<div className="profile">
 			<header>
-				<p className="pageHeader">Create a Listing</p>
+				<p className="pageHeader">Edit Listing</p>
 			</header>
 
 			<main>
@@ -428,7 +455,7 @@ function CreateListing() {
 						required
 					/>
 					<button type="submit" className="primaryButton createListingButton">
-						Create Listing
+						Edit Listing
 					</button>
 				</form>
 			</main>
@@ -436,4 +463,4 @@ function CreateListing() {
 	);
 }
 
-export default CreateListing;
+export default EditListing;
